@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/Main.qml</file>
+        <file>qml/CopyButton.qml</file>
+        <file>qml/SegButton.qml</file>
+        <file>qml/DarkCheckBox.qml</file>
+    </qresource>
+</RCC>
