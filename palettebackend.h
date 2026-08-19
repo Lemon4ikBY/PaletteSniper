@@ -13,7 +13,6 @@ class HotkeyFilter;
 class PaletteBackend : public QObject
 {
     Q_OBJECT
-
     Q_PROPERTY(QString hex READ hex NOTIFY colorChanged)
     Q_PROPERTY(QString rgb READ rgb NOTIFY colorChanged)
     Q_PROPERTY(QString hsl READ hsl NOTIFY colorChanged)
@@ -28,6 +27,7 @@ class PaletteBackend : public QObject
     Q_PROPERTY(int dimAlpha READ dimAlpha WRITE setDimAlpha NOTIFY settingsChanged)
     Q_PROPERTY(QString hotkey READ hotkey NOTIFY settingsChanged)
     Q_PROPERTY(bool autostart READ autostart WRITE setAutostart NOTIFY settingsChanged)
+    Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY settingsChanged)
 
 public:
     explicit PaletteBackend(QObject *parent = nullptr);
@@ -59,6 +59,9 @@ public:
     bool autostart() const { return m_autostart; }
     void setAutostart(bool value);
 
+    QString theme() const { return m_theme; }
+    void setTheme(const QString &value);
+
     Q_INVOKABLE QVariantMap captureScreen();
     Q_INVOKABLE QVariantMap sampleAt(int logicalX, int logicalY);
     Q_INVOKABLE void pickHex(const QString &hex);
@@ -87,13 +90,16 @@ private:
     QImage m_capture;
     qreal m_dpr = 1.0;
     QStringList m_historyHexes;
+
     bool m_autoCopy = true;
     QString m_defaultFormat = "hex";
     int m_zoom = 12;
     int m_dimAlpha = 0x50;
     QString m_hotkeyString = "ctrl+alt+c";
     bool m_autostart = false;
+    QString m_theme = "dark";
+
     HotkeyFilter *m_hotkeyFilter = nullptr;
 };
 
-#endif
+#endif // PALETTEBACKEND_H
