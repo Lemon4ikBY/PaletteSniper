@@ -14,7 +14,6 @@
 #include <QBuffer>
 #include <QIODevice>
 #include <QAbstractNativeEventFilter>
-
 #include <cmath>
 
 #ifdef Q_OS_WIN
@@ -161,6 +160,12 @@ void PaletteBackend::loadSettings()
     m_dimAlpha = s.value("dimAlpha", 0x50).toInt();
     m_hotkeyString = s.value("hotkey", "ctrl+alt+c").toString();
     m_historyHexes = s.value("history").toStringList();
+
+    m_theme = s.value("theme", "dark").toString();
+    if (m_theme != "dark" && m_theme != "light") {
+        m_theme = "dark";
+    }
+
 #ifdef Q_OS_WIN
     QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
     m_autostart = reg.contains("PaletteSniper");
@@ -177,6 +182,7 @@ void PaletteBackend::saveSettings()
     s.setValue("zoom", m_zoom);
     s.setValue("dimAlpha", m_dimAlpha);
     s.setValue("hotkey", m_hotkeyString);
+    s.setValue("theme", m_theme);
 }
 
 void PaletteBackend::saveHistory()
@@ -211,9 +217,11 @@ QVariantList PaletteBackend::palette() const
     m_color.getHslF(&h, &s, &l);
     if (h < 0.0f) h = 0.0f;
     qreal hue = h * 360.0;
+
     auto addColor = [&](const QString &name, qreal hueShift, qreal lightShift = 0.0) {
         result.append(paletteItem(name, fromHslDegrees(hue + hueShift, s, l + lightShift)));
     };
+
     addColor("Base", 0.0);
     addColor("Complement", 180.0);
     addColor("Analog +25", 25.0);
@@ -225,6 +233,7 @@ QVariantList PaletteBackend::palette() const
     addColor("Shade 3", 0.0, 0.0);
     addColor("Shade 4", 0.0, 0.15);
     addColor("Shade 5", 0.0, 0.30);
+
     return result;
 }
 
@@ -287,13 +296,24 @@ void PaletteBackend::setAutostart(bool value)
     emit settingsChanged();
 }
 
+void PaletteBackend::setTheme(const QString &value)
+{
+    if (value != "dark" && value != "light") return;
+    if (m_theme == value) return;
+    m_theme = value;
+    saveSettings();
+    emit settingsChanged();
+}
+
 bool PaletteBackend::trySetHotkey(const QString &text)
 {
     const QString trimmed = text.trimmed().toLower();
     if (trimmed.isEmpty()) return false;
+
 #ifdef Q_OS_WIN
     UINT mods = 0, vk = 0;
     if (!parseHotkey(trimmed, mods, vk)) return false;
+
     UnregisterHotKey(nullptr, 1);
     if (!RegisterHotKey(nullptr, 1, mods, vk)) {
         UINT om = 0, ov = 0;
@@ -313,6 +333,7 @@ void PaletteBackend::resetSettings()
     m_defaultFormat = "hex";
     m_zoom = 12;
     m_dimAlpha = 0x50;
+    m_theme = "dark";
 
 #ifdef Q_OS_WIN
     UnregisterHotKey(nullptr, 1);
@@ -324,7 +345,6 @@ void PaletteBackend::resetSettings()
 #else
     m_hotkeyString = "ctrl+alt+c";
 #endif
-
     saveSettings();
     emit settingsChanged();
 }
@@ -355,13 +375,16 @@ QVariantMap PaletteBackend::captureScreen()
         result.insert("dpr", 1.0);
         return result;
     }
+
     m_dpr = screen->devicePixelRatio();
     QPixmap pixmap = screen->grabWindow(0, 0, 0, -1, -1);
     m_capture = pixmap.toImage().convertToFormat(QImage::Format_RGB32);
+
     QByteArray bytes;
     QBuffer buffer(&bytes);
     buffer.open(QIODevice::WriteOnly);
     m_capture.save(&buffer, "JPG", 90);
+
     result.insert("image", "data:image/jpeg;base64," + QString::fromLatin1(bytes.toBase64()));
     result.insert("dpr", m_dpr);
     return result;
@@ -375,17 +398,21 @@ QVariantMap PaletteBackend::sampleAt(int logicalX, int logicalY)
         result.insert("magnifier", QString());
         return result;
     }
+
     int cx = qBound(0, qRound(logicalX * m_dpr), m_capture.width() - 1);
     int cy = qBound(0, qRound(logicalY * m_dpr), m_capture.height() - 1);
     QColor center = m_capture.pixelColor(cx, cy);
+
     const int size = 13, half = 6;
     int x0 = qBound(0, cx - half, qMax(0, m_capture.width() - size));
     int y0 = qBound(0, cy - half, qMax(0, m_capture.height() - size));
     QImage sub = m_capture.copy(x0, y0, qMin(size, m_capture.width()), qMin(size, m_capture.height()));
+
     QByteArray bytes;
     QBuffer buffer(&bytes);
     buffer.open(QIODevice::WriteOnly);
     sub.save(&buffer, "PNG");
+
     result.insert("hex", center.name().toUpper());
     result.insert("magnifier", "data:image/png;base64," + QString::fromLatin1(bytes.toBase64()));
     return result;
@@ -418,6 +445,7 @@ void PaletteBackend::setColor(const QColor &color)
         saveHistory();
         emit historyChanged();
     }
+
     if (m_autoCopy) {
         QString t = hex();
         if (m_defaultFormat == "rgb") t = rgb();
